@@ -1,37 +1,23 @@
 import os
-import json
 import requests
 from bs4 import BeautifulSoup
 
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 URL = "https://www.ralphlauren.eu/pl/en/private-store/21011"
-STATE_FILE = "known_products.json"
 
-def send_discord(new_items):
+def send_discord(products):
     if not DISCORD_WEBHOOK_URL:
         print("Brak webhooka!")
         return
     
-    for item in new_items:
-        msg = f"🚨 **NOWY PRODUKT W PRIVATE STORE RALPH LAUREN!** 🚨\n\n"
-        msg += f"📦 **{item['title']}**\n"
-        msg += f"🔗 [Zobacz produkt]({item['url']})\n"
+    # Wyślij powiadomienie z podsumowaniem znalezionych produktów
+    msg = f"🚨 **RALPH LAUREN PRIVATE STORE - RAPORT** 🚨\n\n"
+    msg += f"Znaleziono łącznie **{len(products)}** produktów na stronie:\n"
+    for item in products[:10]: # Pokazuje pierwsze 10
+        msg += f"📦 [{item['title']}]({item['url']})\n"
 
-        payload = {"content": msg}
-        requests.post(DISCORD_WEBHOOK_URL, json=payload)
-
-def load_known_products():
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
-            try:
-                return set(json.load(f))
-            except:
-                pass
-    return set()
-
-def save_known_products(products_set):
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(list(products_set), f, ensure_ascii=False, indent=2)
+    payload = {"content": msg}
+    requests.post(DISCORD_WEBHOOK_URL, json=payload)
 
 def main():
     print(f"Sprawdzam stronę: {URL}")
@@ -66,24 +52,11 @@ def main():
 
         print(f"Znaleziono łącznie linków produktów: {len(products)}")
 
-        known = load_known_products()
-        current_urls = {p['url'] for p in products}
-
-        if not known:
-            print("Pierwsze uruchomienie – zapisuję bazę aktualnych produktów bez wysyłania powiadomień.")
-            save_known_products(current_urls)
-            return
-
-        new_urls = current_urls - known
-        new_items = [p for p in products if p['url'] in new_urls]
-
-        if new_items:
-            print(f"Wykryto {len(new_items)} nowych produktów! Wysyłam powiadomienia...")
-            send_discord(new_items)
-            known.update(current_urls)
-            save_known_products(known)
+        if products:
+            print("Wysyłam powiadomienie na Discorda...")
+            send_discord(products)
         else:
-            print("Brak nowych produktów.")
+            print("Brak produktów na stronie.")
 
     except Exception as e:
         print(f"Wystąpił błąd: {e}")
